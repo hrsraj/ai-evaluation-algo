@@ -109,6 +109,15 @@ uvicorn main:app --reload --port 8000
 }
 ```
 
+```json
+{
+  "request": {
+    "expected_output": { "fraud": false, "amount": 1200, "category": "The rapid advancement of technology has fundamentally transformed how individuals communicate and access information. Modern digital tools, particularly smartphones and high-speed internet, allow people to connect instantly across the globe. Consequently, traditional methods of correspondence are becoming obsolete as instantaneous communication takes precedence in both personal and professional spheres." },
+    "actual_output":   { "fraud": false, "amount": 1180, "category": "How people interact and find data has been entirely altered by the swift evolution of electronic innovations. Owing to contemporary devices, notably mobile phones and fast connectivity, individuals can link up immediately from any location. As a result, conventional ways of writing letters are turning outdated, with real-time digital messaging gaining superiority in our work and daily lives." }
+  }
+}
+```
+
 **Response:**
 ```json
 {
