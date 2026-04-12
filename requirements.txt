@@ -1,8 +1,24 @@
+# Prompt Evaluation Engine — Production Dependencies
+# Python 3.11+
+
+# API framework
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
+
+# Data validation
 pydantic==2.10.3
+
+# Semantic scoring (primary — sentence-transformer embeddings)
+sentence-transformers==3.3.1
+torch==2.6.0               # CPU build sufficient; use torch+cu121 for GPU
+
+# Fuzzy string matching (short string fields)
 rapidfuzz==3.10.1
+
+# TF-IDF, cosine similarity (relevance, consistency, fallback scorer)
 scikit-learn==1.5.2
 numpy==2.1.3
+
+# Testing
 pytest==8.3.4
-httpx==0.27.2
+httpx==0.27.2              # for FastAPI TestClient
