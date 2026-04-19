@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Prompt Evaluation Engine — Scoring Methodology</title>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #172b4d;
+    background: #fff;
+    padding: 40px 48px;
+    max-width: 1080px;
+  }
+
+  /* ── Typography ── */
+  h1 { font-size: 28px; font-weight: 700; color: #0052cc; margin-bottom: 6px; }
+  h2 { font-size: 19px; font-weight: 700; color: #172b4d; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #dfe1e6; }
+  h3 { font-size: 15px; font-weight: 700; color: #172b4d; margin: 22px 0 8px; }
+  h4 { font-size: 13px; font-weight: 700; color: #5e6c84; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  p  { margin: 8px 0; color: #172b4d; }
+  ul, ol { margin: 8px 0 8px 22px; }
+  li { margin: 4px 0; }
+  strong { color: #172b4d; }
+  a { color: #0052cc; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Page header ── */
+  .page-header {
+    border-bottom: 3px solid #0052cc;
+    padding-bottom: 16px;
+    margin-bottom: 28px;
+  }
+  .page-subtitle {
+    font-size: 14px;
+    color: #5e6c84;
+    margin-top: 4px;
+  }
+  .meta-row {
+    display: flex;
+    gap: 24px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .meta-pill {
+    background: #f4f5f7;
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 12px;
+    color: #5e6c84;
+  }
+  .meta-pill strong { color: #172b4d; }
+
+  /* ── Info panels ── */
+  .panel {
+    border-radius: 4px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .panel-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .panel-body { flex: 1; }
+  .panel-body p { margin: 0; }
+  .panel-info    { background: #e6f3ff; border-left: 4px solid #0052cc; }
+  .panel-note    { background: #fffae6; border-left: 4px solid #ff8b00; }
+  .panel-success { background: #e3fcef; border-left: 4px solid #00875a; }
+  .panel-warn    { background: #fff0e6; border-left: 4px solid #de350b; }
+
+  /* ── Formula box ── */
+  .formula-box {
+    background: #f4f5f7;
+    border: 1px solid #dfe1e6;
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin: 16px 0;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 13px;
+    line-height: 2;
+  }
+  .formula-main {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0052cc;
+    margin-bottom: 8px;
+  }
+  .formula-line { color: #172b4d; }
+  .formula-comment { color: #5e6c84; font-style: italic; font-family: inherit; }
+
+  /* ── Dimension cards ── */
+  .dim-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .dim-card {
+    border: 1px solid #dfe1e6;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .dim-card-header {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .dim-card-header .weight-badge {
+    margin-left: auto;
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    background: rgba(0,0,0,0.18);
+    border-radius: 20px;
+    padding: 2px 10px;
+    white-space: nowrap;
+  }
+  .dim-card-header .dim-icon { font-size: 20px; }
+  .dim-card-header .dim-name { font-size: 15px; font-weight: 700; color: #fff; }
+  .dim-card-body { padding: 14px 16px; background: #fff; font-size: 13px; }
+  .dim-card-body p { margin: 0 0 8px; }
+  .dim-card-body p:last-child { margin-bottom: 0; }
+  .dim-card-body .method-tag {
+    display: inline-block;
+    background: #f4f5f7;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-family: monospace;
+    color: #5e6c84;
+    margin-top: 6px;
+  }
+
+  .card-correctness  .dim-card-header { background: #0052cc; }
+  .card-relevance    .dim-card-header { background: #6554c0; }
+  .card-completeness .dim-card-header { background: #00875a; }
+  .card-consistency  .dim-card-header { background: #ff8b00; }
+  .card-safety       .dim-card-header { background: #de350b; }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  thead tr { background: #0052cc; }
+  thead th {
+    padding: 10px 14px;
+    text-align: left;
+    color: #fff;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  tbody tr { border-bottom: 1px solid #dfe1e6; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:nth-child(even) { background: #f4f5f7; }
+  tbody td { padding: 9px 14px; vertical-align: top; }
+  .td-center { text-align: center; }
+  .td-mono { font-family: monospace; font-size: 12px; }
+  .td-code {
+    font-family: monospace;
+    font-size: 12px;
+    background: #f4f5f7;
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+
+  /* ── Band chart ── */
+  .band-chart { margin: 16px 0; }
+  .band-row {
+    display: flex;
+    align-items: center;
+    margin: 5px 0;
+    gap: 12px;
+  }
+  .band-label { width: 90px; font-size: 12px; color: #5e6c84; text-align: right; flex-shrink: 0; }
+  .band-bar-wrap { flex: 1; background: #f4f5f7; border-radius: 4px; height: 26px; position: relative; }
+  .band-bar {
+    height: 100%;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .band-score { width: 80px; font-size: 12px; color: #172b4d; text-align: right; flex-shrink: 0; }
+  .band-0 { background: #00875a; width: 100%; }
+  .band-1 { background: #36b37e; width: 97%; }
+  .band-2 { background: #ff8b00; width: 75%; }
+  .band-3 { background: #de350b; width: 40%; }
+  .band-4 { background: #bf2600; width: 10%; border-radius: 4px; }
+
+  /* ── Flow diagram ── */
+  .flow {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 120px;
+  }
+  .flow-box {
+    background: #0052cc;
+    color: #fff;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 110px;
+    line-height: 1.4;
+  }
+  .flow-box.green  { background: #00875a; }
+  .flow-box.purple { background: #6554c0; }
+  .flow-box.orange { background: #ff8b00; }
+  .flow-box.red    { background: #de350b; }
+  .flow-box.grey   { background: #5e6c84; }
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    margin-top: 24px;
+    color: #5e6c84;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  /* ── Verdict logic ── */
+  .verdict-flow { margin: 16px 0; }
+  .verdict-rule {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin: 8px 0;
+    font-size: 13px;
+  }
+  .verdict-rule .rule-num {
+    background: #172b4d;
+    color: #fff;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .verdict-rule.fail { background: #fff0e6; border: 1px solid #de350b; }
+  .verdict-rule.pass { background: #e3fcef; border: 1px solid #00875a; }
+  .verdict-rule.fail2 { background: #ffebe6; border: 1px solid #bf2600; }
+  .verdict-badge {
+    font-weight: 800;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-left: 8px;
+  }
+  .badge-pass { background: #00875a; color: #fff; }
+  .badge-fail { background: #de350b; color: #fff; }
+
+  /* ── Code block ── */
+  .code-block {
+    background: #1e2329;
+    color: #abb2bf;
+    border-radius: 6px;
+    padding: 16px 20px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    margin: 12px 0;
+    overflow-x: auto;
+  }
+  .code-block .kw  { color: #c678dd; }
+  .code-block .str { color: #98c379; }
+  .code-block .num { color: #d19a66; }
+  .code-block .cmt { color: #5c6370; font-style: italic; }
+  .code-block .fn  { color: #61afef; }
+  .code-block .var { color: #e06c75; }
+
+  /* ── Inline code ── */
+  code {
+    background: #f4f5f7;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #de350b;
+  }
+
+  /* ── Scoring example ── */
+  .example-box {
+    border: 1px solid #dfe1e6;
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .example-box-header {
+    background: #f4f5f7;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #172b4d;
+    border-bottom: 1px solid #dfe1e6;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .example-box-body { padding: 16px; }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid #dfe1e6; margin: 32px 0; }
+
+  /* ── Score meter ── */
+  .score-meter-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+  .score-meter-label { width: 130px; font-size: 13px; color: #5e6c84; flex-shrink: 0; }
+  .score-meter-track { flex: 1; height: 12px; background: #dfe1e6; border-radius: 6px; overflow: hidden; }
+  .score-meter-fill  { height: 100%; border-radius: 6px; }
+  .score-meter-val   { width: 50px; font-size: 13px; font-weight: 700; text-align: right; flex-shrink: 0; }
+
+  /* ── TOC ── */
+  .toc {
+    background: #f8f9fa;
+    border: 1px solid #dfe1e6;
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 24px 0;
+    display: inline-block;
+    min-width: 320px;
+  }
+  .toc h4 { margin-top: 0; margin-bottom: 10px; color: #5e6c84; }
+  .toc ol { margin: 0 0 0 18px; }
+  .toc li { margin: 5px 0; }
+  .toc a { color: #0052cc; font-size: 13px; }
+
+  /* ── Footer ── */
+  .page-footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid #dfe1e6;
+    font-size: 12px;
+    color: #5e6c84;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 680px) {
+    body { padding: 20px 16px; }
+    .dim-grid { grid-template-columns: 1fr; }
+    .flow { gap: 8px; }
+    .flow-arrow { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     PAGE HEADER
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-header">
+  <h1>📊 Prompt Evaluation Engine — Scoring Methodology</h1>
+  <p class="page-subtitle">How AI-generated JSON outputs are evaluated, scored, and given a PASS / FAIL verdict</p>
+  <div class="meta-row">
+    <span class="meta-pill"><strong>Version:</strong> 2.0.0</span>
+    <span class="meta-pill"><strong>Owner:</strong> Platform Engineering</span>
+    <span class="meta-pill"><strong>Last Updated:</strong> April 2026</span>
+    <span class="meta-pill"><strong>Status:</strong> ✅ Live</span>
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h4>📋 Contents</h4>
+  <ol>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#pipeline">Evaluation Pipeline</a></li>
+    <li><a href="#final-formula">Final Score Formula</a></li>
+    <li><a href="#dimensions">Scoring Dimensions (all 5)</a></li>
+    <li><a href="#field-comparison">Field-Level Comparison</a></li>
+    <li><a href="#numeric-bands">Numeric Penalty Bands</a></li>
+    <li><a href="#string-routing">String Scoring: Short vs Paragraph</a></li>
+    <li><a href="#tfidf">How TF-IDF + Cosine Similarity Works</a></li>
+    <li><a href="#semantic">How Sentence-Transformer Embeddings Work</a></li>
+    <li><a href="#critical-fails">Critical Fail Rules</a></li>
+    <li><a href="#verdict">Verdict Logic</a></li>
+    <li><a href="#worked-example">Worked Example End-to-End</a></li>
+    <li><a href="#config-reference">Config Reference</a></li>
+  </ol>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     1. OVERVIEW
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="overview">1. Overview</h2>
+
+<div class="panel panel-info">
+  <span class="panel-icon">ℹ️</span>
+  <div class="panel-body">
+    <p>The Prompt Evaluation Engine compares an <strong>expected JSON output</strong> (ground truth) against an <strong>actual JSON output</strong> produced by an AI service. It generates a score from 0–100 and returns a <strong>PASS</strong> or <strong>FAIL</strong> verdict. The engine is fully deterministic — no LLMs are used in the evaluation itself.</p>
+  </div>
+</div>
+
+<p>It evaluates five independent dimensions, each measuring a different quality aspect of the AI output. Scores from all five are combined using configurable weights into a single <strong>Final Score</strong>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Dimension</th>
+      <th>Default Weight</th>
+      <th>What it measures</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>✅ Correctness</td><td class="td-center"><strong>40%</strong></td><td>Are field values correct compared to expected?</td></tr>
+    <tr><td>🔍 Relevance</td><td class="td-center"><strong>20%</strong></td><td>Is the overall document semantically similar?</td></tr>
+    <tr><td>📋 Completeness</td><td class="td-center"><strong>15%</strong></td><td>Are all expected fields present?</td></tr>
+    <tr><td>🔄 Consistency</td><td class="td-center"><strong>15%</strong></td><td>Are repeated runs producing similar outputs?</td></tr>
+    <tr><td>🛡️ Safety</td><td class="td-center"><strong>10%</strong></td><td>Does output contain banned / sensitive keywords?</td></tr>
+  </tbody>
+</table>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     2. PIPELINE
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="pipeline">2. Evaluation Pipeline</h2>
+
+<p>Every evaluation request flows through these steps in order:</p>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="flow-box">1. Receive<br>Request</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box grey">2. Flatten<br>JSON</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box">3. Score<br>Correctness</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box purple">4. Score<br>Relevance</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box green">5. Score<br>Completeness</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box orange">6. Score<br>Consistency</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box red">7. Score<br>Safety</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box grey">8. Weighted<br>Sum × 100</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box grey">9. Critical<br>Fail Check</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box green">10. Verdict<br>PASS / FAIL</div>
+  </div>
+</div>
+
+<p><strong>Step 2 — JSON Flattening</strong> happens before any scoring. Nested objects are reduced to dot-separated key paths so every value is a scalar:</p>
+
+<div class="code-block">
+<span class="cmt">// Input (nested)</span>
+{ <span class="str">"fraud"</span>: <span class="kw">false</span>, <span class="str">"meta"</span>: { <span class="str">"score"</span>: <span class="num">0.9</span>, <span class="str">"label"</span>: <span class="str">"high"</span> } }
+
+<span class="cmt">// After flattening</span>
+{ <span class="str">"fraud"</span>: <span class="kw">false</span>, <span class="str">"meta.score"</span>: <span class="num">0.9</span>, <span class="str">"meta.label"</span>: <span class="str">"high"</span> }
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     3. FINAL SCORE FORMULA
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="final-formula">3. Final Score Formula</h2>
+
+<div class="formula-box">
+  <div class="formula-main">Final Score (0–100) =</div>
+  <div class="formula-line">( 0.40 × <strong>correctness</strong>   <span class="formula-comment">← most important: field accuracy</span></div>
+  <div class="formula-line">+ 0.20 × <strong>relevance</strong>     <span class="formula-comment">← document-level semantic match</span></div>
+  <div class="formula-line">+ 0.15 × <strong>completeness</strong>  <span class="formula-comment">← no missing fields</span></div>
+  <div class="formula-line">+ 0.15 × <strong>consistency</strong>   <span class="formula-comment">← stable across repeated runs</span></div>
+  <div class="formula-line">+ 0.10 × <strong>safety</strong>        <span class="formula-comment">← no banned keywords</span> ) × 100</div>
+</div>
+
+<p>All five dimension scores are in the range <strong>0.0 – 1.0</strong>. After the weighted sum, the result is multiplied by 100 to produce a score in the range <strong>0 – 100</strong>.</p>
+
+<div class="panel panel-note">
+  <span class="panel-icon">⚠️</span>
+  <div class="panel-body">
+    <p>Weights are configurable per request via the <code>dimension_weights</code> config field. The default weights shown above must sum to exactly 1.0 — the engine validates this at request time and rejects invalid configs.</p>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     4. SCORING DIMENSIONS
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="dimensions">4. Scoring Dimensions</h2>
+
+<div class="dim-grid">
+
+  <div class="dim-card card-correctness">
+    <div class="dim-card-header">
+      <span class="dim-icon">✅</span>
+      <span class="dim-name">Correctness</span>
+      <span class="weight-badge">40%</span>
+    </div>
+    <div class="dim-card-body">
+      <p>Field-by-field comparison between expected and actual JSON, after flattening. Each field is scored independently (0.0–1.0) based on its data type, then combined using a weighted average.</p>
+      <p><strong>Supports:</strong> boolean, numeric, short string, paragraph text, nested objects, arrays.</p>
+      <span class="method-tag">weighted average of field scores</span>
+    </div>
+  </div>
+
+  <div class="dim-card card-relevance">
+    <div class="dim-card-header">
+      <span class="dim-icon">🔍</span>
+      <span class="dim-name">Relevance</span>
+      <span class="weight-badge">20%</span>
+    </div>
+    <div class="dim-card-body">
+      <p>Both JSON objects are serialised to flat text strings and compared using TF-IDF vectorisation + cosine similarity. Measures whether the overall documents are topically aligned, independent of field-level correctness.</p>
+      <span class="method-tag">TF-IDF cosine similarity</span>
+    </div>
+  </div>
+
+  <div class="dim-card card-completeness">
+    <div class="dim-card-header">
+      <span class="dim-icon">📋</span>
+      <span class="dim-name">Completeness</span>
+      <span class="weight-badge">15%</span>
+    </div>
+    <div class="dim-card-body">
+      <p>Counts what fraction of expected fields are present in the actual output. Extra fields in actual (not in expected) are <em>ignored</em> — they do not penalise the score.</p>
+      <p><strong>Formula:</strong> <code>present_fields / expected_fields</code></p>
+      <span class="method-tag">field presence ratio</span>
+    </div>
+  </div>
+
+  <div class="dim-card card-consistency">
+    <div class="dim-card-header">
+      <span class="dim-icon">🔄</span>
+      <span class="dim-name">Consistency</span>
+      <span class="weight-badge">15%</span>
+    </div>
+    <div class="dim-card-body">
+      <p>When <code>multiple_outputs</code> are provided (same prompt run N times), measures average pairwise similarity across all output pairs. If only one output is given, returns 1.0 (N/A).</p>
+      <p><strong>Purpose:</strong> Detect non-determinism in the AI service.</p>
+      <span class="method-tag">avg pairwise TF-IDF cosine</span>
+    </div>
+  </div>
+
+  <div class="dim-card card-safety">
+    <div class="dim-card-header">
+      <span class="dim-icon">🛡️</span>
+      <span class="dim-name">Safety</span>
+      <span class="weight-badge">10%</span>
+    </div>
+    <div class="dim-card-body">
+      <p>Scans the entire actual output for banned or sensitive keywords (API keys, PII, security terms, injection patterns). Each unique keyword hit deducts 25 points from the safety score, floored at 0.</p>
+      <p><strong>Formula:</strong> <code>max(0, 1.0 − 0.25 × hits)</code></p>
+      <span class="method-tag">keyword scan</span>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     5. FIELD-LEVEL COMPARISON (CORRECTNESS DETAIL)
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="field-comparison">5. Field-Level Comparison (Correctness Detail)</h2>
+
+<p>Correctness is built from individual field scores. Each flattened field is routed to the appropriate scorer based on its data type:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Data Type</th>
+      <th>Scorer</th>
+      <th>Score range</th>
+      <th>Example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Boolean</strong></td>
+      <td>Strict equality</td>
+      <td>0.0 or 1.0 only</td>
+      <td><code>true</code> vs <code>false</code> → 0.0</td>
+    </tr>
+    <tr>
+      <td><strong>Integer / Float</strong></td>
+      <td>Penalty band scoring</td>
+      <td>0.0 – 1.0 (piecewise)</td>
+      <td><code>1200</code> vs <code>1180</code> → 0.983</td>
+    </tr>
+    <tr>
+      <td><strong>Short String</strong> <br><small>(len &lt; threshold)</small></td>
+      <td>Fuzzy token-sort ratio (rapidfuzz)</td>
+      <td>0.0 – 1.0</td>
+      <td><code>"retail"</code> vs <code>"Retail"</code> → 1.0</td>
+    </tr>
+    <tr>
+      <td><strong>Paragraph</strong> <br><small>(len ≥ threshold)</small></td>
+      <td>Sentence-transformer embeddings<br><small>(TF-IDF fallback if not installed)</small></td>
+      <td>0.0 – 1.0</td>
+      <td>Same-gist different wording → 0.75–0.92</td>
+    </tr>
+    <tr>
+      <td><strong>Type mismatch</strong></td>
+      <td>Hard zero</td>
+      <td>0.0</td>
+      <td><code>"low"</code> vs <code>0</code> → 0.0</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="panel panel-note">
+  <span class="panel-icon">⚠️</span>
+  <div class="panel-body">
+    <p><code>bool</code> is checked <em>before</em> numeric in Python because <code>bool</code> is a subtype of <code>int</code>. Without this check, <code>True</code> would be treated as <code>1</code> and <code>False</code> as <code>0</code> — producing wrong scores on boolean fields.</p>
+  </div>
+</div>
+
+<h3>Correctness Formula</h3>
+
+<div class="formula-box">
+  <div class="formula-main">correctness = Σ(field_score<sub>i</sub> × weight<sub>i</sub>) / Σ(weight<sub>i</sub>)</div>
+  <br>
+  <div class="formula-comment">// Unspecified fields default to weight = 1.0</div>
+  <div class="formula-comment">// Extra fields in actual output are ignored</div>
+</div>
+
+<div class="example-box">
+  <div class="example-box-header">🧮 Example — correctness calculation</div>
+  <div class="example-box-body">
+    <table>
+      <thead><tr><th>Field</th><th>Expected</th><th>Actual</th><th>Weight</th><th>Score</th><th>Contribution</th></tr></thead>
+      <tbody>
+        <tr><td><code>fraud</code></td><td>false</td><td>false</td><td>0.50</td><td>1.000</td><td>0.500</td></tr>
+        <tr><td><code>amount</code></td><td>1200</td><td>1180</td><td>0.30</td><td>0.983</td><td>0.295</td></tr>
+        <tr><td><code>category</code></td><td>"retail"</td><td>"retail"</td><td>0.20</td><td>1.000</td><td>0.200</td></tr>
+        <tr style="background:#e3fcef;font-weight:700"><td colspan="4" style="text-align:right">Correctness =</td><td colspan="2">(0.500 + 0.295 + 0.200) / 1.00 = <strong>0.995</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     6. NUMERIC PENALTY BANDS
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="numeric-bands">6. Numeric Penalty Bands</h2>
+
+<p>Numeric fields are scored using a piecewise linear function based on the percentage deviation from the expected value:</p>
+
+<div class="formula-box">
+  deviation = |expected − actual| / |expected|
+</div>
+
+<div class="band-chart">
+  <div class="band-row">
+    <div class="band-label">Exact (0%)</div>
+    <div class="band-bar-wrap"><div class="band-bar band-0">Exact match</div></div>
+    <div class="band-score"><strong>1.00</strong></div>
+  </div>
+  <div class="band-row">
+    <div class="band-label">Band 1: 0–5%</div>
+    <div class="band-bar-wrap"><div class="band-bar band-1">Near-perfect</div></div>
+    <div class="band-score">0.90–1.00</div>
+  </div>
+  <div class="band-row">
+    <div class="band-label">Band 2: 5–15%</div>
+    <div class="band-bar-wrap"><div class="band-bar band-2">Moderate</div></div>
+    <div class="band-score">0.60–0.90</div>
+  </div>
+  <div class="band-row">
+    <div class="band-label">Band 3: 15–30%</div>
+    <div class="band-bar-wrap"><div class="band-bar band-3">High penalty</div></div>
+    <div class="band-score">0.00–0.60</div>
+  </div>
+  <div class="band-row">
+    <div class="band-label">Band 4: &gt;30%</div>
+    <div class="band-bar-wrap"><div class="band-bar band-4" style="min-width:60px">Hard zero</div></div>
+    <div class="band-score"><strong style="color:#de350b">0.00</strong></div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Band</th><th>Deviation</th><th>Score formula</th><th>Also triggers</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Exact</td><td>0%</td><td class="td-mono">1.0</td><td>—</td></tr>
+    <tr><td>Band 1</td><td>0–5%</td><td class="td-mono">1.0 − (dev/0.05) × 0.10</td><td>—</td></tr>
+    <tr><td>Band 2</td><td>5–15%</td><td class="td-mono">0.9 − ((dev−0.05)/0.10) × 0.30</td><td>—</td></tr>
+    <tr><td>Band 3</td><td>15–30%</td><td class="td-mono">0.6 − ((dev−0.15)/0.15) × 0.60</td><td>—</td></tr>
+    <tr><td>Band 4</td><td>&gt;30%</td><td class="td-mono">0.0 (hard zero)</td><td>⚠️ Critical Fail Rule 2</td></tr>
+  </tbody>
+</table>
+
+<div class="example-box">
+  <div class="example-box-header">📌 The Known Bug Fix — amount: 1200 vs 500</div>
+  <div class="example-box-body">
+    <p>deviation = |1200 − 500| / 1200 = 700/1200 = <strong>58.3%</strong> → Band 4 → score = <strong>0.0</strong></p>
+    <p>This also triggers Critical Fail Rule 2 (numeric deviation &gt; 30%), forcing <strong>FAIL</strong> regardless of other scores. Before this fix, the engine was returning a high score and PASS on this input.</p>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     7. STRING SCORING: SHORT vs PARAGRAPH
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="string-routing">7. String Scoring — Short vs Paragraph</h2>
+
+<p>String fields are routed to different scorers based on their length compared to <code>paragraph_threshold</code> (default: <strong>60 characters</strong>):</p>
+
+<table>
+  <thead><tr><th>Field length</th><th>Path</th><th>Scorer</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>len &lt; 60</td>
+      <td><code>[short-string]</code></td>
+      <td>rapidfuzz token-sort ratio</td>
+      <td>Short labels don't have enough vocabulary for TF-IDF. Fuzzy matching handles typos and capitalisation.</td>
+    </tr>
+    <tr>
+      <td>len ≥ 60</td>
+      <td><code>[paragraph]</code></td>
+      <td>Sentence-transformer embeddings (or TF-IDF fallback)</td>
+      <td>Paragraphs need semantic understanding — same meaning with different words should score high.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="panel panel-success">
+  <span class="panel-icon">✅</span>
+  <div class="panel-body">
+    <p><strong>Identical strings always score 1.0</strong> regardless of length — exact match short-circuits before any scorer is invoked. This is correct behaviour. The <code>[paragraph]</code> label only appears when the texts are genuinely different.</p>
+  </div>
+</div>
+
+<h3>Fuzzy Token-Sort Ratio (rapidfuzz)</h3>
+<p>Normalises word order first, then computes Levenshtein edit distance:</p>
+<div class="code-block">
+<span class="cmt">// Step 1: tokenise and sort alphabetically</span>
+<span class="str">"food and beverage"</span>  → sorted: <span class="str">"and beverage food"</span>
+<span class="str">"beverage and food"</span>  → sorted: <span class="str">"and beverage food"</span>
+
+<span class="cmt">// Step 2: Levenshtein on sorted strings → identical → score = 1.0</span>
+<span class="cmt">// Without sort: score would be ~0.60 due to character position differences</span>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     8. TF-IDF + COSINE SIMILARITY
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="tfidf">8. How TF-IDF + Cosine Similarity Works</h2>
+
+<p>Used for the <strong>Relevance</strong> dimension, <strong>Consistency</strong> dimension, and as the fallback for paragraph fields when sentence-transformers is not installed.</p>
+
+<h3>Step 1 — TF-IDF Vectorisation</h3>
+
+<p>Each document (JSON serialised to text) is converted into a numeric vector where each dimension represents a vocabulary word, weighted by two factors:</p>
+
+<table>
+  <thead><tr><th>Factor</th><th>What it measures</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>TF</strong> — Term Frequency</td>
+      <td>How often the word appears in <em>this</em> document</td>
+      <td>Words that appear more get higher weight</td>
+    </tr>
+    <tr>
+      <td><strong>IDF</strong> — Inverse Document Frequency</td>
+      <td>How rare the word is <em>across all documents</em></td>
+      <td>Words in every document (like "the", "is") get weight → 0</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="code-block">
+<span class="cmt">// Example: 2 documents, vocabulary = {fraud, transaction, the, system}</span>
+
+<span class="cmt">// IDF for each word:</span>
+<span class="fn">IDF</span>(<span class="str">"the"</span>)         = log(2/2) = <span class="num">0.0</span>      <span class="cmt">// in BOTH docs → killed</span>
+<span class="fn">IDF</span>(<span class="str">"fraud"</span>)       = log(2/2) = <span class="num">0.0</span>      <span class="cmt">// in BOTH docs → killed</span>
+<span class="fn">IDF</span>(<span class="str">"transaction"</span>) = log(2/1) = <span class="num">0.693</span>    <span class="cmt">// in ONE doc → survives</span>
+
+<span class="cmt">// Result: only words unique to one document remain non-zero</span>
+<span class="cmt">// Words shared by both → zero weight → don't inflate similarity</span>
+</div>
+
+<p>The engine uses <strong>bigrams</strong> (<code>ngram_range=(1,2)</code>) — word pairs like <code>"fraud detection"</code> are treated as additional vocabulary dimensions alongside single words. This captures phrase-level meaning that single words miss.</p>
+
+<h3>Step 2 — Cosine Similarity</h3>
+
+<p>Once both documents are vectors, similarity is the cosine of the angle between them:</p>
+
+<div class="formula-box">
+  cosine_similarity(A, B) = (A · B) / (|A| × |B|)
+</div>
+
+<p>Where <code>A · B</code> is the dot product (sum of element-wise multiplications) and <code>|A|</code>, <code>|B|</code> are the vector magnitudes.</p>
+
+<table>
+  <thead><tr><th>Cosine value</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>1.0</strong></td><td>Vectors point in the same direction → identical content</td></tr>
+    <tr><td><strong>0.7–0.95</strong></td><td>Highly similar → same topic, mostly shared vocabulary</td></tr>
+    <tr><td><strong>0.3–0.7</strong></td><td>Partially similar → related domain</td></tr>
+    <tr><td><strong>0.0–0.3</strong></td><td>Low similarity → different topics or heavy synonym use</td></tr>
+  </tbody>
+</table>
+
+<div class="panel panel-note">
+  <span class="panel-icon">⚠️</span>
+  <div class="panel-body">
+    <p><strong>TF-IDF blind spot:</strong> If two sentences mean exactly the same thing but share zero content words (e.g. <em>"insufficient funds"</em> vs <em>"balance too low"</em>), TF-IDF cosine scores near 0. This is why sentence-transformer embeddings are used for paragraph fields — they understand meaning rather than vocabulary.</p>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     9. SENTENCE TRANSFORMER EMBEDDINGS
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="semantic">9. How Sentence-Transformer Embeddings Work</h2>
+
+<p>Used as the <strong>primary scorer for paragraph fields</strong> (strings ≥ <code>paragraph_threshold</code> characters) when <code>sentence-transformers</code> is installed.</p>
+
+<p>Model: <strong>all-MiniLM-L6-v2</strong> — a fine-tuned BERT model producing 384-dimensional dense embeddings per sentence.</p>
+
+<h3>Architecture</h3>
+
+<div class="flow" style="margin:16px 0">
+  <div class="flow-step">
+    <div class="flow-box grey">Input text</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box grey">Tokeniser<br><small style="font-weight:400">splits to subwords</small></div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box purple">BERT<br>(6 layers)<br><small style="font-weight:400">384 hidden dims</small></div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box grey">Token<br>embeddings</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box grey">Mean<br>pooling</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-box">384-dim<br>sentence vector</div>
+  </div>
+</div>
+
+<p>The model was trained on hundreds of millions of sentence pairs labelled as <em>similar</em> or <em>dissimilar</em>. It learned that <strong>"insufficient funds"</strong> and <strong>"balance too low"</strong> are semantically equivalent — not from vocabulary overlap, but from contextual patterns across billions of words.</p>
+
+<div class="example-box">
+  <div class="example-box-header">📌 Why this matters — synonym paraphrase</div>
+  <div class="example-box-body">
+    <table>
+      <thead><tr><th>Sentence pair</th><th>TF-IDF cosine</th><th>Sentence-transformer cosine</th></tr></thead>
+      <tbody>
+        <tr><td>"insufficient funds" vs "balance too low"</td><td class="td-center" style="color:#de350b"><strong>~0.05</strong></td><td class="td-center" style="color:#00875a"><strong>~0.82</strong></td></tr>
+        <tr><td>"transaction declined" vs "payment rejected"</td><td class="td-center" style="color:#de350b"><strong>~0.10</strong></td><td class="td-center" style="color:#00875a"><strong>~0.85</strong></td></tr>
+        <tr><td>Same sentence, different word order</td><td class="td-center"><strong>~0.88</strong></td><td class="td-center"><strong>~0.96</strong></td></tr>
+        <tr><td>Completely different domains</td><td class="td-center"><strong>~0.05</strong></td><td class="td-center"><strong>~0.05</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<h3>Fallback: TF-IDF + Jaccard + Concept Clusters</h3>
+
+<p>When sentence-transformers is not installed, the paragraph scorer uses a three-signal hybrid:</p>
+
+<div class="formula-box">
+  hybrid = 0.45 × tfidf_cosine + 0.35 × jaccard + 0.20 × concept_cluster_score
+  <br><br>
+  <span class="formula-comment">final = max(tfidf_cosine, hybrid)</span>
+</div>
+
+<table>
+  <thead><tr><th>Signal</th><th>Weight</th><th>What it captures</th></tr></thead>
+  <tbody>
+    <tr><td>TF-IDF cosine</td><td class="td-center">45%</td><td>Shared vocabulary, phrase overlap</td></tr>
+    <tr><td>Jaccard (content words)</td><td class="td-center">35%</td><td>Content word overlap after stopword removal</td></tr>
+    <tr><td>Concept cluster match</td><td class="td-center">20%</td><td>Domain synonym groups (e.g. "declined" ≈ "rejected")</td></tr>
+  </tbody>
+</table>
+
+<p>The <code>max()</code> ensures the pure TF-IDF score wins when vocabulary overlap is strong, while the hybrid boosts scores for synonym-heavy paraphrases where TF-IDF alone would score near zero.</p>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     10. CRITICAL FAIL RULES
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="critical-fails">10. Critical Fail Rules</h2>
+
+<p>Critical fail rules are override checks that force verdict = <strong>FAIL</strong> regardless of the final score. They are evaluated <em>after</em> all dimension scores are computed.</p>
+
+<table>
+  <thead><tr><th>Rule</th><th>Trigger condition</th><th>Config</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Rule 1</strong><br>Critical field mismatch</td>
+      <td>Any field listed in <code>critical_fields</code> has a score &lt; 1.0</td>
+      <td><code>critical_fields: ["fraud", "risk_level"]</code></td>
+    </tr>
+    <tr>
+      <td><strong>Rule 2</strong><br>Numeric deviation exceeded</td>
+      <td>Any numeric field has deviation &gt; <code>numeric_deviation_threshold</code> (default 30%) — score is already 0.0</td>
+      <td><code>numeric_deviation_threshold: 0.30</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="panel panel-warn">
+  <span class="panel-icon">🚨</span>
+  <div class="panel-body">
+    <p><strong>If a field appears in both <code>critical_fields</code> AND triggers Rule 2</strong>, only one <code>CriticalFailReason</code> is recorded (Rule 1 takes precedence). The result is still FAIL — no duplicate entries.</p>
+  </div>
+</div>
+
+<p>The response includes a <code>critical_fails</code> array explaining exactly which rule fired and why:</p>
+
+<div class="code-block">
+<span class="str">"critical_fails"</span>: [
+  {
+    <span class="str">"rule"</span>:   <span class="str">"critical_field_mismatch:fraud"</span>,
+    <span class="str">"field"</span>:  <span class="str">"fraud"</span>,
+    <span class="str">"detail"</span>: <span class="str">"Critical field 'fraud' scored 0.0000 — boolean mismatch: expected true, got false"</span>
+  }
+]
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     11. VERDICT LOGIC
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="verdict">11. Verdict Logic</h2>
+
+<p>The verdict is determined by evaluating three conditions in order. The first condition that matches wins:</p>
+
+<div class="verdict-flow">
+  <div class="verdict-rule fail">
+    <div class="rule-num">1</div>
+    <div>
+      <strong>IF</strong> any critical fail rule is triggered
+      <span class="verdict-badge badge-fail">FAIL</span>
+      <br><small>Score is irrelevant. A critical fail always overrides.</small>
+    </div>
+  </div>
+  <div class="verdict-rule pass">
+    <div class="rule-num">2</div>
+    <div>
+      <strong>ELSE IF</strong> <code>final_score ≥ pass_threshold</code> (default 85)
+      <span class="verdict-badge badge-pass">PASS</span>
+      <br><small>No critical rules triggered, score is above the threshold.</small>
+    </div>
+  </div>
+  <div class="verdict-rule fail2">
+    <div class="rule-num">3</div>
+    <div>
+      <strong>ELSE</strong>
+      <span class="verdict-badge badge-fail">FAIL</span>
+      <br><small>No critical rules, but score is below the threshold.</small>
+    </div>
+  </div>
+</div>
+
+<div class="panel panel-info">
+  <span class="panel-icon">ℹ️</span>
+  <div class="panel-body">
+    <p><code>pass_threshold</code> is configurable per request (default 85). Lowering it makes the engine more lenient; raising it stricter. The threshold applies to <code>final_score</code> on the 0–100 scale.</p>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     12. WORKED EXAMPLE END-TO-END
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="worked-example">12. Worked Example — End to End</h2>
+
+<div class="example-box">
+  <div class="example-box-header">📥 Input</div>
+  <div class="example-box-body">
+    <div class="code-block">
+<span class="str">"expected_output"</span>: { <span class="str">"fraud"</span>: <span class="kw">false</span>, <span class="str">"amount"</span>: <span class="num">1200</span>, <span class="str">"category"</span>: <span class="str">"retail"</span>, <span class="str">"risk_level"</span>: <span class="str">"low"</span> }
+<span class="str">"actual_output"</span>:   { <span class="str">"fraud"</span>: <span class="kw">false</span>, <span class="str">"amount"</span>: <span class="num">1180</span>, <span class="str">"category"</span>: <span class="str">"retail"</span>, <span class="str">"risk_level"</span>: <span class="str">"low"</span> }
+
+<span class="str">"field_weights"</span>: { <span class="str">"fraud"</span>: <span class="num">0.5</span>, <span class="str">"amount"</span>: <span class="num">0.3</span>, <span class="str">"category"</span>: <span class="num">0.1</span>, <span class="str">"risk_level"</span>: <span class="num">0.1</span> }
+<span class="str">"critical_fields"</span>: [<span class="str">"fraud"</span>]
+<span class="str">"pass_threshold"</span>: <span class="num">85</span>
+    </div>
+  </div>
+</div>
+
+<h3>Step-by-step calculation</h3>
+
+<h4>① Correctness</h4>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Deviation</th><th>Weight</th><th>Score</th></tr></thead>
+  <tbody>
+    <tr><td><code>fraud</code></td><td>Boolean</td><td>Exact match</td><td>0.50</td><td>1.000</td></tr>
+    <tr><td><code>amount</code></td><td>Numeric</td><td>1.7% → Band 1</td><td>0.30</td><td>0.966</td></tr>
+    <tr><td><code>category</code></td><td>Short string</td><td>Exact match</td><td>0.10</td><td>1.000</td></tr>
+    <tr><td><code>risk_level</code></td><td>Short string</td><td>Exact match</td><td>0.10</td><td>1.000</td></tr>
+    <tr style="background:#e3fcef;font-weight:700"><td colspan="4" style="text-align:right">Correctness =</td><td>(0.50 + 0.290 + 0.10 + 0.10) / 1.00 = <strong>0.990</strong></td></tr>
+  </tbody>
+</table>
+
+<h4>② Relevance (TF-IDF cosine on full JSON text)</h4>
+<p>Both JSONs differ only in amount (1200 vs 1180). The serialised texts are nearly identical → cosine ≈ <strong>0.97</strong></p>
+
+<h4>③ Completeness</h4>
+<p>All 4 expected fields present in actual → <strong>4/4 = 1.00</strong></p>
+
+<h4>④ Consistency</h4>
+<p>No <code>multiple_outputs</code> provided → defaults to <strong>1.00</strong> (N/A)</p>
+
+<h4>⑤ Safety</h4>
+<p>No banned keywords found → <strong>1.00</strong></p>
+
+<h4>⑥ Final score</h4>
+<div class="formula-box">
+  final = (0.40 × 0.990 + 0.20 × 0.97 + 0.15 × 1.00 + 0.15 × 1.00 + 0.10 × 1.00) × 100
+  <br>
+       = (0.396 + 0.194 + 0.150 + 0.150 + 0.100) × 100
+  <br>
+       = <strong>99.0</strong>
+</div>
+
+<h4>⑦ Critical fail check</h4>
+<p><code>fraud</code> is in <code>critical_fields</code>, score = 1.0 → no rule triggered.</p>
+<p>No numeric field exceeded 30% deviation → Rule 2 not triggered.</p>
+
+<h4>⑧ Verdict</h4>
+<p>No critical fails. 99.0 ≥ 85 → <span class="verdict-badge badge-pass">PASS</span></p>
+
+<h3>Score breakdown visualisation</h3>
+
+<div style="margin:16px 0">
+  <div class="score-meter-row">
+    <div class="score-meter-label">Correctness</div>
+    <div class="score-meter-track"><div class="score-meter-fill" style="width:99%;background:#0052cc"></div></div>
+    <div class="score-meter-val" style="color:#0052cc">0.990</div>
+  </div>
+  <div class="score-meter-row">
+    <div class="score-meter-label">Relevance</div>
+    <div class="score-meter-track"><div class="score-meter-fill" style="width:97%;background:#6554c0"></div></div>
+    <div class="score-meter-val" style="color:#6554c0">0.970</div>
+  </div>
+  <div class="score-meter-row">
+    <div class="score-meter-label">Completeness</div>
+    <div class="score-meter-track"><div class="score-meter-fill" style="width:100%;background:#00875a"></div></div>
+    <div class="score-meter-val" style="color:#00875a">1.000</div>
+  </div>
+  <div class="score-meter-row">
+    <div class="score-meter-label">Consistency</div>
+    <div class="score-meter-track"><div class="score-meter-fill" style="width:100%;background:#ff8b00"></div></div>
+    <div class="score-meter-val" style="color:#ff8b00">1.000</div>
+  </div>
+  <div class="score-meter-row">
+    <div class="score-meter-label">Safety</div>
+    <div class="score-meter-track"><div class="score-meter-fill" style="width:100%;background:#de350b"></div></div>
+    <div class="score-meter-val" style="color:#de350b">1.000</div>
+  </div>
+  <div class="score-meter-row" style="margin-top:12px;border-top:2px solid #dfe1e6;padding-top:12px">
+    <div class="score-meter-label"><strong>Final Score</strong></div>
+    <div class="score-meter-track"><div class="score-meter-fill" style="width:99%;background:#172b4d"></div></div>
+    <div class="score-meter-val"><strong>99.0</strong></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════
+     13. CONFIG REFERENCE
+══════════════════════════════════════════════════════════════════ -->
+<h2 id="config-reference">13. Config Reference</h2>
+
+<table>
+  <thead>
+    <tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>field_weights</code></td>
+      <td>dict</td>
+      <td><code>{}</code> (all 1.0)</td>
+      <td>Per-field importance weights for correctness. Keys are dot-separated paths. E.g. <code>{"fraud": 0.5, "amount": 0.3}</code></td>
+    </tr>
+    <tr>
+      <td><code>critical_fields</code></td>
+      <td>list</td>
+      <td><code>[]</code></td>
+      <td>Fields that must score 1.0 or verdict is forced to FAIL. E.g. <code>["fraud", "risk_level"]</code></td>
+    </tr>
+    <tr>
+      <td><code>paragraph_threshold</code></td>
+      <td>int</td>
+      <td><code>60</code></td>
+      <td>Strings longer than this (chars) use semantic embedding scoring. Shorter strings use fuzzy matching.</td>
+    </tr>
+    <tr>
+      <td><code>numeric_deviation_threshold</code></td>
+      <td>float</td>
+      <td><code>0.30</code></td>
+      <td>Numeric fields exceeding this fractional deviation (e.g. 0.30 = 30%) score 0.0 and trigger a critical fail.</td>
+    </tr>
+    <tr>
+      <td><code>pass_threshold</code></td>
+      <td>float</td>
+      <td><code>85.0</code></td>
+      <td>Minimum final score (0–100) required for PASS verdict. Validated: must be between 0 and 100.</td>
+    </tr>
+    <tr>
+      <td><code>dimension_weights</code></td>
+      <td>dict</td>
+      <td>correctness 0.40, relevance 0.20, completeness 0.15, consistency 0.15, safety 0.10</td>
+      <td>Weights for the 5 scoring dimensions. Must contain all 5 keys and sum to exactly 1.0.</td>
+    </tr>
+    <tr>
+      <td><code>banned_keywords</code></td>
+      <td>list</td>
+      <td><code>null</code> (uses built-in list)</td>
+      <td>Custom banned keyword list for safety scoring. Pass <code>[]</code> or <code>null</code> to use the engine default.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="panel panel-info">
+  <span class="panel-icon">ℹ️</span>
+  <div class="panel-body">
+    <p><strong>Built-in banned keywords</strong> include: <code>password</code>, <code>secret</code>, <code>api_key</code>, <code>access_token</code>, <code>ssn</code>, <code>credit_card</code>, <code>cvv</code>, <code>hack</code>, <code>exploit</code>, <code>sql injection</code>, <code>drop table</code>, <code>eval(</code>, <code>malware</code>, <code>ransomware</code>, <code>phishing</code>, <code>jailbreak</code>, and others. See <code>evaluator.py → _DEFAULT_BANNED_KEYWORDS</code> for the full list.</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- FOOTER -->
+<div class="page-footer">
+  <span>Prompt Evaluation Engine — Scoring Methodology v2.0.0</span>
+  <span>Platform Engineering · Last updated April 2026</span>
+</div>
+
+</body>
+</html>
