@@ -1,0 +1,70 @@
+# ═══════════════════════════════════════════════════════════════
+# .github/workflows/deploy.yml
+#
+# Deploys index.html + api.html to GitHub Pages on every push
+# to main. The static site is served at:
+#   https://hrsraj.github.io/ai-evaluation-algo/
+#
+# One-time setup required (do this once in GitHub UI):
+#   Repo → Settings → Pages → Source → GitHub Actions
+# ═══════════════════════════════════════════════════════════════
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'api.html'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:        # allows manual trigger from Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true  # cancel previous run if a new push arrives
+
+jobs:
+  deploy:
+    name: Deploy static site
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate HTML files exist
+        run: |
+          echo "Checking required files..."
+          test -f index.html && echo "✅ index.html found" || (echo "❌ index.html missing" && exit 1)
+          test -f api.html   && echo "✅ api.html found"   || (echo "❌ api.html missing"   && exit 1)
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # Upload the entire repo root as the Pages artifact.
+      # Only index.html and api.html need to be here for the site —
+      # the Python files are uploaded too but aren't served as pages,
+      # which is fine (they're just ignored by browsers).
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'           # repo root — index.html and api.html are here
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Print deployed URL
+        run: |
+          echo "🚀 Site deployed to: ${{ steps.deployment.outputs.page_url }}"
+          echo "   Docs page:        ${{ steps.deployment.outputs.page_url }}index.html"
+          echo "   API Explorer:     ${{ steps.deployment.outputs.page_url }}api.html"

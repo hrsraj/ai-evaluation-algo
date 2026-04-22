@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Explorer — Prompt Evaluation Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0b0e14;
+  --surface:   #131720;
+  --surface2:  #1a2030;
+  --border:    #252d40;
+  --accent:    #3b82f6;
+  --accent2:   #06b6d4;
+  --green:     #10b981;
+  --red:       #ef4444;
+  --orange:    #f59e0b;
+  --text:      #e2e8f0;
+  --muted:     #64748b;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'Syne', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── NOISE TEXTURE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+.logo-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.logo-text { font-weight: 800; font-size: 15px; color: var(--text); letter-spacing: -0.3px; }
+.logo-text span { color: var(--accent); }
+
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+  border: none;
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover { background: #2563eb; }
+.btn-green {
+  background: var(--green);
+  color: #fff;
+  width: 100%;
+  justify-content: center;
+  padding: 11px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+.btn-green:hover { background: #059669; }
+.btn-green:disabled { background: var(--muted); cursor: not-allowed; opacity: 0.6; }
+
+/* ── LAYOUT ── */
+.layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: calc(100vh - 60px);
+  position: relative;
+  z-index: 1;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 24px 0;
+  position: sticky;
+  top: 60px;
+  height: calc(100vh - 60px);
+  overflow-y: auto;
+}
+
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 16px 20px 8px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 20px;
+  cursor: pointer;
+  transition: background 0.12s;
+  border-left: 3px solid transparent;
+  text-decoration: none;
+}
+.sidebar-item:hover { background: var(--surface2); }
+.sidebar-item.active {
+  background: rgba(59,130,246,0.1);
+  border-left-color: var(--accent);
+}
+.sidebar-item.active .endpoint-name { color: var(--accent); }
+
+.method-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+.method-get  { background: rgba(16,185,129,0.15); color: var(--green); }
+.method-post { background: rgba(59,130,246,0.15); color: var(--accent); }
+
+.endpoint-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: var(--mono);
+}
+.endpoint-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+/* ── MAIN CONTENT ── */
+main { padding: 32px 40px; max-width: 900px; }
+
+/* ── ENDPOINT SECTION ── */
+.endpoint-section { margin-bottom: 64px; }
+
+.endpoint-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.endpoint-header .method-badge { font-size: 12px; padding: 4px 10px; }
+.endpoint-path {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+.endpoint-summary {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+/* ── TABS ── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.tab-btn {
+  padding: 8px 16px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s, border-color 0.12s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── PARAM TABLE ── */
+.param-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+.param-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.param-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  font-size: 13px;
+}
+.param-table tr:last-child td { border-bottom: none; }
+.param-name { font-family: var(--mono); color: var(--accent2); font-size: 12px; }
+.param-type { font-family: var(--mono); color: var(--orange); font-size: 11px; }
+.param-required {
+  font-size: 10px; font-weight: 700;
+  background: rgba(239,68,68,0.12); color: var(--red);
+  padding: 1px 5px; border-radius: 3px;
+}
+.param-optional {
+  font-size: 10px; font-weight: 700;
+  background: rgba(100,116,139,0.15); color: var(--muted);
+  padding: 1px 5px; border-radius: 3px;
+}
+
+/* ── CODE EDITOR ── */
+.editor-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.editor-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+}
+.copy-btn {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.copy-btn:hover { color: var(--text); border-color: var(--accent); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+textarea.code-input {
+  width: 100%;
+  background: var(--surface);
+  color: #a8d8a8;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 16px;
+  border: none;
+  outline: none;
+  resize: vertical;
+  min-height: 220px;
+  tab-size: 2;
+}
+
+/* ── RESPONSE ── */
+.response-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 16px;
+  display: none;
+}
+.response-wrap.visible { display: block; }
+
+.response-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.status-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.status-200 { background: rgba(16,185,129,0.15); color: var(--green); }
+.status-4xx { background: rgba(239,68,68,0.15); color: var(--red); }
+.status-500 { background: rgba(239,68,68,0.15); color: var(--red); }
+
+.verdict-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.verdict-pass { background: rgba(16,185,129,0.1); border-bottom: 1px solid rgba(16,185,129,0.2); color: var(--green); }
+.verdict-fail { background: rgba(239,68,68,0.1); border-bottom: 1px solid rgba(239,68,68,0.2); color: var(--red); }
+
+pre.response-body {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 16px;
+  overflow-x: auto;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* ── SCORE BARS ── */
+.scores-visual {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.score-row { display: flex; align-items: center; gap: 10px; }
+.score-label { font-size: 11px; color: var(--muted); width: 90px; flex-shrink: 0; }
+.score-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.score-fill { height: 100%; border-radius: 3px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+.score-val { font-family: var(--mono); font-size: 11px; font-weight: 700; width: 36px; text-align: right; flex-shrink: 0; }
+
+.final-score-display {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.final-num {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 700;
+}
+.final-label { font-size: 11px; color: var(--muted); }
+
+/* ── FIELD RESULTS ── */
+.field-results { padding: 12px 16px; }
+.field-results-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.field-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.field-row:last-child { border-bottom: none; }
+.field-key { font-family: var(--mono); color: var(--accent2); width: 120px; flex-shrink: 0; word-break: break-all; }
+.field-score-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.field-expl { color: var(--muted); flex: 1; line-height: 1.4; }
+
+/* ── CRITICAL FAIL BANNER ── */
+.critical-banner {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 16px;
+  font-size: 12px;
+}
+.critical-banner-title { color: var(--red); font-weight: 700; margin-bottom: 6px; }
+.critical-rule { color: var(--text); margin: 4px 0; }
+.critical-rule code { font-family: var(--mono); color: var(--red); font-size: 11px; }
+
+/* ── SPINNER ── */
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── LOADING STATE ── */
+.loading .spinner { display: inline-block; }
+.loading .btn-text { display: none; }
+
+/* ── BASE URL INPUT ── */
+.base-url-bar {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.base-url-bar label { font-size: 11px; color: var(--muted); font-weight: 700; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.6px; }
+.base-url-bar input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+}
+.base-url-bar .live-dot {
+  width: 8px; height: 8px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* ── SECTION DIVIDER ── */
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 48px 0;
+}
+
+/* ── RESPONSE SKELETON ── */
+.response-skeleton {
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.skel {
+  height: 12px;
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+  border-radius: 4px;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── HERO BAND ── */
+.hero-band {
+  background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(6,182,212,0.06) 100%);
+  border: 1px solid rgba(59,130,246,0.15);
+  border-radius: 12px;
+  padding: 24px 28px;
+  margin-bottom: 36px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.hero-band-icon { font-size: 36px; flex-shrink: 0; }
+.hero-band h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 4px; }
+.hero-band p { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  main { padding: 20px; }
+  .scores-visual { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="index.html">
+    <div class="logo-icon">⚡</div>
+    <span class="logo-text">Eval<span>Engine</span></span>
+  </a>
+  <div class="header-right">
+    <a class="btn btn-ghost" href="index.html">📄 Docs</a>
+    <a class="btn btn-ghost" href="https://github.com/hrsraj/ai-evaluation-algo" target="_blank">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      GitHub
+    </a>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-section-label">Endpoints</div>
+
+    <a class="sidebar-item active" href="#evaluate" onclick="setActive(this)">
+      <span class="method-badge method-post">POST</span>
+      <div>
+        <div class="endpoint-name">/evaluate</div>
+        <div class="endpoint-desc">Full evaluation</div>
+      </div>
+    </a>
+
+    <a class="sidebar-item" href="#evaluate-quick" onclick="setActive(this)">
+      <span class="method-badge method-post">POST</span>
+      <div>
+        <div class="endpoint-name">/evaluate/quick</div>
+        <div class="endpoint-desc">Score + verdict only</div>
+      </div>
+    </a>
+
+    <a class="sidebar-item" href="#evaluate-batch" onclick="setActive(this)">
+      <span class="method-badge method-post">POST</span>
+      <div>
+        <div class="endpoint-name">/evaluate/batch</div>
+        <div class="endpoint-desc">Batch evaluation</div>
+      </div>
+    </a>
+
+    <a class="sidebar-item" href="#health" onclick="setActive(this)">
+      <span class="method-badge method-get">GET</span>
+      <div>
+        <div class="endpoint-name">/health</div>
+        <div class="endpoint-desc">Service liveness</div>
+      </div>
+    </a>
+
+    <div class="sidebar-section-label" style="margin-top:16px">Resources</div>
+    <a class="sidebar-item" href="index.html">
+      <span style="font-size:14px">📖</span>
+      <div>
+        <div class="endpoint-name" style="font-family:var(--sans)">Scoring Docs</div>
+      </div>
+    </a>
+    <a class="sidebar-item" href="https://github.com/hrsraj/ai-evaluation-algo" target="_blank">
+      <span style="font-size:14px">📦</span>
+      <div>
+        <div class="endpoint-name" style="font-family:var(--sans)">Source Code</div>
+      </div>
+    </a>
+  </nav>
+
+  <!-- MAIN -->
+  <main>
+
+    <div class="hero-band">
+      <div class="hero-band-icon">⚡</div>
+      <div>
+        <h1>Prompt Evaluation Engine — API Explorer</h1>
+        <p>Interactive reference for all endpoints. Point the base URL at your running instance and fire requests directly from this page.</p>
+      </div>
+    </div>
+
+    <!-- BASE URL BAR -->
+    <div class="base-url-bar">
+      <label>Base URL</label>
+      <input type="text" id="baseUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+      <div class="live-dot" title="Change base URL to target your deployment"></div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════
+         POST /evaluate
+    ═══════════════════════════════════════════ -->
+    <section class="endpoint-section" id="evaluate">
+      <div class="endpoint-header">
+        <span class="method-badge method-post" style="font-size:13px;padding:5px 12px">POST</span>
+        <span class="endpoint-path">/evaluate</span>
+      </div>
+      <p class="endpoint-summary">
+        Full evaluation with field-level explainability. Returns per-field scores, critical fail reasons,
+        missing fields, unsafe keywords found, and one-line explanations per dimension.
+      </p>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab(this,'eval-params')">Parameters</button>
+        <button class="tab-btn" onclick="switchTab(this,'eval-body')">Request Body</button>
+        <button class="tab-btn" onclick="switchTab(this,'eval-response-schema')">Response Schema</button>
+      </div>
+
+      <div class="tab-panel active" id="eval-params">
+        <table class="param-table">
+          <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="param-name">request.expected_output</td><td class="param-type">object</td><td><span class="param-required">required</span></td><td>Ground-truth JSON the AI service should produce</td></tr>
+            <tr><td class="param-name">request.actual_output</td><td class="param-type">object</td><td><span class="param-required">required</span></td><td>Actual JSON produced by the AI service under evaluation</td></tr>
+            <tr><td class="param-name">request.multiple_outputs</td><td class="param-type">array</td><td><span class="param-optional">optional</span></td><td>Repeated outputs of the same prompt — used only for consistency scoring</td></tr>
+            <tr><td class="param-name">config.field_weights</td><td class="param-type">object</td><td><span class="param-optional">optional</span></td><td>Per-field importance weights. Unspecified fields default to 1.0</td></tr>
+            <tr><td class="param-name">config.critical_fields</td><td class="param-type">array</td><td><span class="param-optional">optional</span></td><td>Fields that force FAIL on any mismatch, regardless of score</td></tr>
+            <tr><td class="param-name">config.paragraph_threshold</td><td class="param-type">integer</td><td><span class="param-optional">optional</span></td><td>Char length above which strings use semantic scoring. Default: 60</td></tr>
+            <tr><td class="param-name">config.pass_threshold</td><td class="param-type">float</td><td><span class="param-optional">optional</span></td><td>Minimum final score (0–100) for PASS verdict. Default: 85.0</td></tr>
+            <tr><td class="param-name">config.numeric_deviation_threshold</td><td class="param-type">float</td><td><span class="param-optional">optional</span></td><td>Fractional deviation above which numeric score → 0 and critical fail fires. Default: 0.30</td></tr>
+            <tr><td class="param-name">config.banned_keywords</td><td class="param-type">array</td><td><span class="param-optional">optional</span></td><td>Custom safety keyword list. Null or empty → uses built-in default list</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tab-panel" id="eval-body">
+        <p style="color:var(--muted);font-size:12px;margin-bottom:12px">Edit the body and click Send Request below.</p>
+      </div>
+
+      <div class="tab-panel" id="eval-response-schema">
+        <table class="param-table">
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="param-name">scores.correctness</td><td class="param-type">float 0–1</td><td>Weighted field-level accuracy</td></tr>
+            <tr><td class="param-name">scores.relevance</td><td class="param-type">float 0–1</td><td>Document TF-IDF cosine similarity</td></tr>
+            <tr><td class="param-name">scores.completeness</td><td class="param-type">float 0–1</td><td>Fraction of expected fields present</td></tr>
+            <tr><td class="param-name">scores.consistency</td><td class="param-type">float 0–1</td><td>Avg pairwise similarity across multiple_outputs</td></tr>
+            <tr><td class="param-name">scores.safety</td><td class="param-type">float 0–1</td><td>1.0 − 0.25 × banned_keyword_hits</td></tr>
+            <tr><td class="param-name">scores.final_score</td><td class="param-type">float 0–100</td><td>Weighted sum × 100</td></tr>
+            <tr><td class="param-name">verdict</td><td class="param-type">string</td><td>"PASS" or "FAIL"</td></tr>
+            <tr><td class="param-name">verdict_reason</td><td class="param-type">string</td><td>One-line explanation of the verdict</td></tr>
+            <tr><td class="param-name">field_results</td><td class="param-type">array</td><td>Per-field breakdown: field, expected, actual, score, weight, explanation</td></tr>
+            <tr><td class="param-name">critical_fails</td><td class="param-type">array</td><td>Triggered override rules: rule, field, detail</td></tr>
+            <tr><td class="param-name">missing_fields</td><td class="param-type">array</td><td>Expected fields absent from actual output</td></tr>
+            <tr><td class="param-name">unsafe_keywords_found</td><td class="param-type">array</td><td>Banned keywords detected</td></tr>
+            <tr><td class="param-name">explanations</td><td class="param-type">object</td><td>One-line explanation per scoring dimension</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- TRY IT -->
+      <div class="editor-wrap">
+        <div class="editor-header">
+          <span class="editor-label">Request Body — JSON</span>
+          <button class="copy-btn" onclick="copyCode('body-evaluate')">Copy</button>
+        </div>
+        <textarea class="code-input" id="body-evaluate" rows="24">{
+  "request": {
+    "expected_output": {
+      "fraud": false,
+      "amount": 1200,
+      "category": "retail",
+      "risk_level": "low",
+      "status": "approved"
+    },
+    "actual_output": {
+      "fraud": false,
+      "amount": 1180,
+      "category": "retail",
+      "risk_level": "low",
+      "status": "approved"
+    }
+  },
+  "config": {
+    "field_weights": {
+      "fraud": 0.5,
+      "amount": 0.3,
+      "risk_level": 0.1,
+      "category": 0.05,
+      "status": 0.05
+    },
+    "critical_fields": ["fraud"],
+    "pass_threshold": 85,
+    "paragraph_threshold": 60,
+    "dimension_weights": {
+      "correctness": 0.40,
+      "relevance": 0.20,
+      "completeness": 0.15,
+      "consistency": 0.15,
+      "safety": 0.10
+    }
+  }
+}</textarea>
+      </div>
+
+      <button class="btn btn-green" id="btn-evaluate" onclick="sendRequest('evaluate')">
+        <span class="spinner" id="spinner-evaluate"></span>
+        <span class="btn-text">⚡ Send Request</span>
+      </button>
+
+      <div class="response-wrap" id="response-evaluate">
+        <div class="response-header">
+          <span class="status-pill" id="status-evaluate"></span>
+          <span style="font-size:11px;color:var(--muted)" id="time-evaluate"></span>
+          <button class="copy-btn" style="margin-left:auto" onclick="copyResponse('response-body-evaluate')">Copy response</button>
+        </div>
+        <div id="verdict-banner-evaluate"></div>
+        <div id="scores-vis-evaluate"></div>
+        <div id="field-results-evaluate"></div>
+        <div id="critical-evaluate"></div>
+        <pre class="response-body" id="response-body-evaluate"></pre>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ═══════════════════════════════════════════
+         POST /evaluate/quick
+    ═══════════════════════════════════════════ -->
+    <section class="endpoint-section" id="evaluate-quick">
+      <div class="endpoint-header">
+        <span class="method-badge method-post" style="font-size:13px;padding:5px 12px">POST</span>
+        <span class="endpoint-path">/evaluate/quick</span>
+      </div>
+      <p class="endpoint-summary">
+        Same evaluation pipeline as <code style="font-family:var(--mono);color:var(--accent2)">/evaluate</code> but returns only top-level scores, verdict, and verdict reason — no field-level detail. Suitable for high-throughput pipelines.
+      </p>
+
+      <div class="editor-wrap">
+        <div class="editor-header">
+          <span class="editor-label">Request Body — JSON</span>
+          <button class="copy-btn" onclick="copyCode('body-quick')">Copy</button>
+        </div>
+        <textarea class="code-input" id="body-quick" rows="18">{
+  "request": {
+    "expected_output": {
+      "loan_approved": true,
+      "amount": 500000,
+      "interest_rate": 8.5,
+      "risk_grade": "A"
+    },
+    "actual_output": {
+      "loan_approved": true,
+      "amount": 500000,
+      "interest_rate": 8.5,
+      "risk_grade": "A"
+    }
+  },
+  "config": {
+    "critical_fields": ["loan_approved", "risk_grade"],
+    "pass_threshold": 85
+  }
+}</textarea>
+      </div>
+
+      <button class="btn btn-green" id="btn-quick" onclick="sendRequest('quick')">
+        <span class="spinner" id="spinner-quick"></span>
+        <span class="btn-text">⚡ Send Request</span>
+      </button>
+
+      <div class="response-wrap" id="response-quick">
+        <div class="response-header">
+          <span class="status-pill" id="status-quick"></span>
+          <span style="font-size:11px;color:var(--muted)" id="time-quick"></span>
+          <button class="copy-btn" style="margin-left:auto" onclick="copyResponse('response-body-quick')">Copy response</button>
+        </div>
+        <div id="verdict-banner-quick"></div>
+        <div id="scores-vis-quick"></div>
+        <pre class="response-body" id="response-body-quick"></pre>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ═══════════════════════════════════════════
+         POST /evaluate/batch
+    ═══════════════════════════════════════════ -->
+    <section class="endpoint-section" id="evaluate-batch">
+      <div class="endpoint-header">
+        <span class="method-badge method-post" style="font-size:13px;padding:5px 12px">POST</span>
+        <span class="endpoint-path">/evaluate/batch</span>
+      </div>
+      <p class="endpoint-summary">
+        Evaluate up to 100 request-config pairs in a single HTTP call. Each item is evaluated independently.
+        Errors in individual items are returned as <code style="font-family:var(--mono);color:var(--accent2)">BatchResultItem.error</code> rather than failing the whole batch.
+      </p>
+
+      <div class="editor-wrap">
+        <div class="editor-header">
+          <span class="editor-label">Request Body — JSON</span>
+          <button class="copy-btn" onclick="copyCode('body-batch')">Copy</button>
+        </div>
+        <textarea class="code-input" id="body-batch" rows="34">{
+  "items": [
+    {
+      "request": {
+        "expected_output": { "fraud": false, "amount": 2450, "status": "approved" },
+        "actual_output":   { "fraud": false, "amount": 2450, "status": "approved" }
+      },
+      "config": {
+        "critical_fields": ["fraud"],
+        "pass_threshold": 85,
+        "dimension_weights": { "correctness": 0.40, "relevance": 0.20, "completeness": 0.15, "consistency": 0.15, "safety": 0.10 }
+      }
+    },
+    {
+      "request": {
+        "expected_output": { "fraud": true,  "amount": 89999, "status": "blocked" },
+        "actual_output":   { "fraud": false, "amount": 89999, "status": "approved" }
+      },
+      "config": {
+        "critical_fields": ["fraud"],
+        "pass_threshold": 85,
+        "dimension_weights": { "correctness": 0.40, "relevance": 0.20, "completeness": 0.15, "consistency": 0.15, "safety": 0.10 }
+      }
+    },
+    {
+      "request": {
+        "expected_output": { "fraud": false, "amount": 1200, "status": "approved" },
+        "actual_output":   { "fraud": false, "amount": 500,  "status": "approved" }
+      },
+      "config": {
+        "critical_fields": ["fraud"],
+        "pass_threshold": 85,
+        "dimension_weights": { "correctness": 0.40, "relevance": 0.20, "completeness": 0.15, "consistency": 0.15, "safety": 0.10 }
+      }
+    }
+  ]
+}</textarea>
+      </div>
+
+      <button class="btn btn-green" id="btn-batch" onclick="sendRequest('batch')">
+        <span class="spinner" id="spinner-batch"></span>
+        <span class="btn-text">⚡ Send Request</span>
+      </button>
+
+      <div class="response-wrap" id="response-batch">
+        <div class="response-header">
+          <span class="status-pill" id="status-batch"></span>
+          <span style="font-size:11px;color:var(--muted)" id="time-batch"></span>
+          <button class="copy-btn" style="margin-left:auto" onclick="copyResponse('response-body-batch')">Copy response</button>
+        </div>
+        <div id="batch-summary"></div>
+        <pre class="response-body" id="response-body-batch"></pre>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ═══════════════════════════════════════════
+         GET /health
+    ═══════════════════════════════════════════ -->
+    <section class="endpoint-section" id="health">
+      <div class="endpoint-header">
+        <span class="method-badge method-get" style="font-size:13px;padding:5px 12px">GET</span>
+        <span class="endpoint-path">/health</span>
+      </div>
+      <p class="endpoint-summary">
+        Liveness check. Returns service status, version, and the active semantic scorer
+        (<code style="font-family:var(--mono);color:var(--accent2)">all-MiniLM-L6-v2</code> when sentence-transformers is installed, otherwise the TF-IDF fallback).
+      </p>
+
+      <button class="btn btn-green" id="btn-health" onclick="sendRequest('health')">
+        <span class="spinner" id="spinner-health"></span>
+        <span class="btn-text">⚡ Send Request</span>
+      </button>
+
+      <div class="response-wrap" id="response-health">
+        <div class="response-header">
+          <span class="status-pill" id="status-health"></span>
+          <span style="font-size:11px;color:var(--muted)" id="time-health"></span>
+        </div>
+        <pre class="response-body" id="response-body-health"></pre>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// ── Sidebar active state ──────────────────────────────────────────
+function setActive(el) {
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Tab switching ─────────────────────────────────────────────────
+function switchTab(btn, panelId) {
+  const section = btn.closest('.endpoint-section');
+  section.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  section.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  section.querySelector('#' + panelId).classList.add('active');
+}
+
+// ── Copy helpers ──────────────────────────────────────────────────
+function copyCode(id) {
+  const el = document.getElementById(id);
+  navigator.clipboard.writeText(el.value);
+  const btn = el.closest('.editor-wrap').querySelector('.copy-btn');
+  btn.textContent = 'Copied!'; btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+}
+function copyResponse(id) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent);
+}
+
+// ── Score color ───────────────────────────────────────────────────
+function scoreColor(v) {
+  if (v >= 0.85) return 'var(--green)';
+  if (v >= 0.60) return 'var(--orange)';
+  return 'var(--red)';
+}
+
+// ── Render score bars ─────────────────────────────────────────────
+function renderScores(scores, containerId) {
+  const dims = ['correctness','relevance','completeness','consistency','safety'];
+  const labels = ['Correctness','Relevance','Completeness','Consistency','Safety'];
+  const el = document.getElementById(containerId);
+  if (!el || !scores) return;
+
+  // Final score display
+  const fs = scores.final_score ?? 0;
+  const fsColor = fs >= 85 ? 'var(--green)' : fs >= 60 ? 'var(--orange)' : 'var(--red)';
+  el.innerHTML = `
+    <div class="final-score-display">
+      <div class="final-num" style="color:${fsColor}">${fs.toFixed(1)}</div>
+      <div><div style="font-size:12px;font-weight:700;color:${fsColor}">Final Score</div><div class="final-label">out of 100</div></div>
+    </div>
+    <div class="scores-visual">
+      ${dims.map((d,i) => {
+        const v = scores[d] ?? 0;
+        const pct = Math.round(v * 100);
+        const c = scoreColor(v);
+        return `<div class="score-row">
+          <div class="score-label">${labels[i]}</div>
+          <div class="score-track"><div class="score-fill" style="width:${pct}%;background:${c}"></div></div>
+          <div class="score-val" style="color:${c}">${v.toFixed(2)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ── Render field results ──────────────────────────────────────────
+function renderFieldResults(fieldResults, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el || !fieldResults?.length) return;
+  el.innerHTML = `
+    <div class="field-results">
+      <div class="field-results-title">Field Breakdown (${fieldResults.length} fields)</div>
+      ${fieldResults.map(f => {
+        const c = scoreColor(f.score);
+        const badge = `<span class="field-score-badge" style="background:${c}22;color:${c}">${f.score.toFixed(3)}</span>`;
+        return `<div class="field-row">
+          <div class="field-key">${f.field}</div>
+          ${badge}
+          <div class="field-expl">${f.explanation}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ── Render critical fails ─────────────────────────────────────────
+function renderCritical(criticalFails, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el || !criticalFails?.length) return;
+  el.innerHTML = `
+    <div class="critical-banner">
+      <div class="critical-banner-title">🚨 Critical Fail Rules Triggered (${criticalFails.length})</div>
+      ${criticalFails.map(cf => `
+        <div class="critical-rule">
+          <code>${cf.rule}</code> — ${cf.detail}
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── Render verdict banner ─────────────────────────────────────────
+function renderVerdict(verdict, reason, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const isPass = verdict === 'PASS';
+  el.innerHTML = `<div class="verdict-banner ${isPass ? 'verdict-pass' : 'verdict-fail'}">
+    <span>${isPass ? '✅' : '❌'}</span>
+    <span>${verdict}</span>
+    <span style="font-weight:400;font-size:12px;color:var(--muted);margin-left:4px">${reason}</span>
+  </div>`;
+}
+
+// ── Render batch summary ──────────────────────────────────────────
+function renderBatchSummary(results, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el || !results?.length) return;
+  const passes = results.filter(r => r.verdict === 'PASS').length;
+  const fails  = results.filter(r => r.verdict === 'FAIL').length;
+  el.innerHTML = `
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:16px;font-size:13px">
+      <span style="color:var(--green);font-weight:700">✅ ${passes} PASS</span>
+      <span style="color:var(--red);font-weight:700">❌ ${fails} FAIL</span>
+      <span style="color:var(--muted)">${results.length} total</span>
+    </div>`;
+}
+
+// ── Main request sender ───────────────────────────────────────────
+async function sendRequest(type) {
+  const baseUrl = document.getElementById('baseUrl').value.replace(/\/$/, '');
+  const btn = document.getElementById('btn-' + type);
+  const spinner = document.getElementById('spinner-' + type);
+  const responseWrap = document.getElementById('response-' + type);
+  const statusEl = document.getElementById('status-' + type);
+  const timeEl = document.getElementById('time-' + type);
+  const bodyEl = document.getElementById('response-body-' + type);
+
+  // Reset UI
+  btn.classList.add('loading');
+  btn.disabled = true;
+  responseWrap.classList.remove('visible');
+
+  // Clear sub-elements
+  ['verdict-banner-','scores-vis-','field-results-','critical-','batch-summary'].forEach(prefix => {
+    const el = document.getElementById(prefix + type);
+    if (el) el.innerHTML = '';
+  });
+
+  const start = Date.now();
+
+  try {
+    let url, opts;
+
+    if (type === 'health') {
+      url = `${baseUrl}/health`;
+      opts = { method: 'GET', headers: { 'Accept': 'application/json' } };
+    } else if (type === 'batch') {
+      url = `${baseUrl}/evaluate/batch`;
+      const bodyText = document.getElementById('body-batch').value;
+      opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyText };
+    } else if (type === 'quick') {
+      url = `${baseUrl}/evaluate/quick`;
+      const bodyText = document.getElementById('body-quick').value;
+      opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyText };
+    } else {
+      url = `${baseUrl}/evaluate`;
+      const bodyText = document.getElementById('body-evaluate').value;
+      opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyText };
+    }
+
+    const res = await fetch(url, opts);
+    const elapsed = Date.now() - start;
+    const data = await res.json();
+
+    // Status pill
+    statusEl.textContent = res.status + ' ' + (res.ok ? 'OK' : 'Error');
+    statusEl.className = 'status-pill ' + (res.ok ? 'status-200' : 'status-4xx');
+    if (timeEl) timeEl.textContent = elapsed + 'ms';
+
+    // Enrich response with visual components
+    if (res.ok) {
+      if (type === 'evaluate') {
+        renderVerdict(data.verdict, data.verdict_reason, 'verdict-banner-evaluate');
+        renderScores(data.scores, 'scores-vis-evaluate');
+        renderFieldResults(data.field_results, 'field-results-evaluate');
+        renderCritical(data.critical_fails, 'critical-evaluate');
+      }
+      if (type === 'quick') {
+        renderVerdict(data.verdict, data.verdict_reason, 'verdict-banner-quick');
+        renderScores(data.scores, 'scores-vis-quick');
+      }
+      if (type === 'batch') {
+        renderBatchSummary(data, 'batch-summary');
+      }
+    }
+
+    bodyEl.textContent = JSON.stringify(data, null, 2);
+
+  } catch (err) {
+    const elapsed = Date.now() - start;
+    if (statusEl) { statusEl.textContent = 'Network Error'; statusEl.className = 'status-pill status-500'; }
+    if (timeEl) timeEl.textContent = elapsed + 'ms';
+    bodyEl.textContent = `❌ Could not reach ${baseUrl}\n\nMake sure the API server is running:\n  uvicorn main:app --host 0.0.0.0 --port 8000\n\nOr with Docker:\n  docker compose up\n\nError: ${err.message}`;
+  }
+
+  responseWrap.classList.add('visible');
+  btn.classList.remove('loading');
+  btn.disabled = false;
+  responseWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# ── Python cache ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# ── Virtual environments ───────────────────────────────────────
+.venv/
+venv/
+env/
+.env
+
+# ── Tests (not needed in prod image) ──────────────────────────
+tests.py
+test_*.py
+
+# ── Git / CI ───────────────────────────────────────────────────
+.git/
+.github/
+.gitignore
+
+# ── Static / docs (served via GitHub Pages, not the API) ──────
+index.html
+api.html
+README.md
+*.md
+
+# ── Dev tooling ────────────────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+docker-compose.yml
+Dockerfile

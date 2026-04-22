@@ -1,0 +1,75 @@
+# ═══════════════════════════════════════════════════════════════
+# Prompt Evaluation Engine — Docker Compose
+#
+# Usage:
+#   docker compose up                   # run with defaults
+#   docker compose up --build           # rebuild image first
+#   docker compose --profile dev up     # hot-reload dev mode
+# ═══════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Production service ────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime           # use the slim runtime stage
+    image: eval-engine:latest
+    container_name: eval-engine
+    ports:
+      - "8000:8000"
+    environment:
+      WORKERS: "2"              # increase for more CPU cores
+      LOG_LEVEL: "info"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s         # give model time to warm up
+    # Resource limits — tune for your machine
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # ── Dev service (hot reload, source mount) ────────────────────
+  api-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder           # includes build tools, no model baked in
+    image: eval-engine:dev
+    container_name: eval-engine-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source so changes reflect without rebuild
+      - ./main.py:/app/main.py:ro
+      - ./evaluator.py:/app/evaluator.py:ro
+      - ./models.py:/app/models.py:ro
+      - ./semantic.py:/app/semantic.py:ro
+      # Persist model download between restarts
+      - model-cache:/root/.cache/torch
+    environment:
+      WORKERS: "1"
+      LOG_LEVEL: "debug"
+    command: >
+      uvicorn main:app
+        --host 0.0.0.0
+        --port 8000
+        --reload
+        --log-level debug
+    restart: no
+
+volumes:
+  model-cache:
+    name: eval-engine-model-cache
